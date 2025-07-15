@@ -28,12 +28,57 @@ services:
       timeout: 10s
       retries: 3
 
+  auth-service:
+    build: ./auth-service
+    restart: always
+    depends_on:
+      - postgresql-primary
+    networks:
+      - front
+      - back
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  message-service:
+    build: ./message-service
+    restart: always
+    depends_on:
+      - postgresql-primary
+    networks:
+      - front
+      - back
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  notification-service:
+    build: ./notification-service
+    restart: always
+    depends_on:
+      - postgresql-primary
+    networks:
+      - front
+      - back
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   nginx:
     image: nginx:stable
     restart: always
     depends_on:
       - app1
       - app2
+      - auth-service
+      - message-service
+      - notification-service
     ports:
       - "80:80"
     volumes:
