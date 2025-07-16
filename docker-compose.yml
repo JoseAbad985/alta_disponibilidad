@@ -3,13 +3,16 @@ services:
   app1:
     build: ./app
     restart: always
+    ports:
+      - "8081:3000"
     depends_on:
-      - postgresql-primary
+      postgresql-primary:
+        condition: service_healthy
     networks:
       - front
       - back
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -18,12 +21,13 @@ services:
     build: ./app
     restart: always
     depends_on:
-      - postgresql-primary
+      postgresql-primary:
+        condition: service_healthy
     networks:
       - front
       - back
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -32,7 +36,8 @@ services:
     build: ./auth-service
     restart: always
     depends_on:
-      - postgresql-primary
+      postgresql-primary:
+        condition: service_healthy
     networks:
       - front
       - back
@@ -46,12 +51,13 @@ services:
     build: ./message-service
     restart: always
     depends_on:
-      - postgresql-primary
+      postgresql-primary:
+        condition: service_healthy
     networks:
       - front
       - back
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/messages/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -60,12 +66,13 @@ services:
     build: ./notification-service
     restart: always
     depends_on:
-      - postgresql-primary
+      postgresql-primary:
+        condition: service_healthy
     networks:
       - front
       - back
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/notifications/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -114,7 +121,8 @@ services:
     image: bitnami/postgresql:15
     restart: always
     depends_on:
-      - postgresql-primary
+      postgresql-primary:
+        condition: service_healthy
     environment:
       POSTGRESQL_REPLICATION_MODE: slave
       POSTGRESQL_REPLICATION_USER: replicador

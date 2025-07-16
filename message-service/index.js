@@ -7,9 +7,14 @@ const pool = new Pool({
 
 const app = express();
 
-// Healthcheck
+// Healthcheck original
 app.get('/messages/health', (req, res) => {
   res.json({ status: 'message service OK' });
+});
+
+// NUEVA RUTA: Endpoint de estado para el monitoreo del dashboard
+app.get('/status', (req, res) => {
+  res.status(200).json({ status: 'Operativo' });
 });
 
 // Endpoint principal para demo: devuelve hora desde la BD

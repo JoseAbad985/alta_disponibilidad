@@ -6,111 +6,99 @@ Este README describe los pasos que debe seguir un usuario desde otra máquina pa
 
 - Tener instalado Docker y Docker Compose.
 - Clonar este repositorio en su máquina:
-  ```bash
-  git clone https://github.com/JoseAbad985/alta_disponibilidad.git
-  cd alta_disponibilidad
-  ```
-
+git clone https://github.com/JoseAbad985/alta_disponibilidad.gitcd alta_disponibilidad
 ## 1. Levantar la infraestructura
 
 Construir y arrancar todos los servicios:
-```bash
 docker-compose up -d --build
-```
-
 Verificar que todos los contenedores estén “Up (healthy)”:
-```bash
 docker-compose ps
-```
+## 2. Verificar el endpoint principal
 
-## 2. Verificar endpoints básicos
-
-Comprobar que cada endpoint responde HTTP 200 con JSON válido:
-```bash
-curl -i http://localhost/                # App principal (app1/app2)
-curl -i http://localhost/auth/           # Auth Service
-curl -i http://localhost/messages/       # Message Service
-curl -i http://localhost/notifications/  # Notification Service
-```
-
+Comprobar que la aplicación principal responde correctamente:
+curl.exe -i http://localhost/
 ## 3. Simular fallos y probar tolerancia
 
-### 3.1 Failover de base de datos
-Detener el nodo primario:
-```bash
-docker-compose stop postgresql-primary
-```
-Comprobar que Auth Service sigue devolviendo 200:
-```bash
-for i in {1..5}; do curl -s -w "%{http_code}\n" http://localhost/auth/; done
-```
-Arrancar de nuevo el primario:
-```bash
-docker-compose start postgresql-primary
-```
+A continuación se describen los cuatro escenarios de fallo probados.
 
-### 3.2 Redundancia activa-activa
-Detener una réplica de la app principal:
-```bash
-docker-compose stop app1
-```
-Comprobar peticiones a la raíz mantienen 200:
-```bash
-for i in {1..5}; do curl -s -w "%{http_code}\n" http://localhost/; done
-```
-Arrancar `app1`:
-```bash
-docker-compose start app1
-```
+### 3.1 Prueba 1: Failover de base de datos
+Se detiene el nodo primario para verificar que la aplicación conmuta a la réplica.
 
-### 3.3 Balanceo con detección de nodos caídos
-Detener el Message Service:
-```bash
-docker-compose stop message-service
-```
-Verificar que `/messages/` falla mientras el servicio esté detenido:
-```bash
-for i in {1..5}; do curl -s -w "%{http_code}\n" http://localhost/messages/; done
-```
-Reiniciar `message-service`:
-```bash
-docker-compose start message-service
-```
+1.  **Detener la base de datos primaria:**
+    ```
+    docker-compose stop postgresql-primary
+    ```
+2.  **Verificar la disponibilidad (debe dar código 200):**
+    ```
+    foreach ($i in 1..5) { curl.exe -s -o NUL -w "%{http_code}`n" http://localhost/ }
+    ```
+3.  **Restaurar el servicio:**
+    ```
+    docker-compose start postgresql-primary
+    ```
 
-### 3.4 Partición de red (degradación controlada)
-Desconectar todas las apps de la red de base de datos:
-```bash
-docker network disconnect alta_disponibilidad_back alta_disponibilidad-app1-1
-docker network disconnect alta_disponibilidad_back alta_disponibilidad-app2-1
-docker network disconnect alta_disponibilidad_back alta_disponibilidad-auth-service-1
-docker network disconnect alta_disponibilidad_back alta_disponibilidad-message-service-1
-docker network disconnect alta_disponibilidad_back alta_disponibilidad-notification-service-1
-```
-Hacer peticiones a cada ruta; deben devolver errores (500/502):
-```bash
-for path in "/" "/auth/" "/messages/" "/notifications/"; do
-  for i in {1..5}; do
-    curl -s -w "${path} %{http_code}\n" http://localhost${path}
-  done
-done
-```
-Reconectar y verificar restauración:
-```bash
-docker network connect alta_disponibilidad_back alta_disponibilidad-app1-1
-docker network connect alta_disponibilidad_back alta_disponibilidad-app2-1
-docker network connect alta_disponibilidad_back alta_disponibilidad-auth-service-1
-docker network connect alta_disponibilidad_back alta_disponibilidad-message-service-1
-docker network connect alta_disponibilidad_back alta_disponibilidad-notification-service-1
-sleep 10
-curl -s -w "root: %{http_code}\n"        http://localhost/
-curl -s -w "auth: %{http_code}\n"        http://localhost/auth/
-curl -s -w "messages: %{http_code}\n"    http://localhost/messages/
-curl -s -w "notifications: %{http_code}\n" http://localhost/notifications/
-```
+### 3.2 Prueba 2: Caída de un Nodo de Aplicación
+Se detiene una de las réplicas de la aplicación para verificar que el balanceador redirige el tráfico.
 
-## 4. Limpieza
+1.  **Detener una réplica de la aplicación:**
+    ```
+    docker-compose stop app1
+    ```
+2.  **Verificar la disponibilidad (debe dar código 200):**
+    ```
+    foreach ($i in 1..5) { curl.exe -s -o NUL -w "%{http_code}`n" http://localhost/ }
+    ```
+3.  **Restaurar el servicio:**
+    ```
+    docker-compose start app1
+    ```
 
-Detener y eliminar contenedores, redes y volúmenes asociados:
-```bash
+### 3.3 Prueba 3: Fallo de un Microservicio Individual
+Se detiene un microservicio para probar el aislamiento de fallos.
+
+1.  **Detener el microservicio de mensajes:**
+    ```
+    docker-compose stop message-service
+    ```
+2.  **Verificar el aislamiento:**
+    * La ruta del servicio caído **fallará**:
+        ```
+        curl.exe -s -o NUL -w "Ruta /messages/: %{http_code}`n" http://localhost/messages/
+        ```
+    * Otras rutas como la raíz **seguirán funcionando**:
+        ```
+        curl.exe -s -o NUL -w "Ruta /: %{http_code}`n" http://localhost/
+        ```
+3.  **Restaurar el servicio:**
+    ```
+    docker-compose start message-service
+    ```
+
+### 3.4 Prueba 4: Caída del Balanceador de Carga
+Se detiene `nginx` para probar la redundancia de la capa de aplicación.
+
+**Nota:** Esta prueba requiere que el servicio `app1` en `docker-compose.yml` tenga los puertos expuestos:
+```
+ports:
+  - "8081:3000"
+```
+Detener el balanceador de carga:
+```
+docker-compose stop nginx
+```
+Verificar el fallo y la tolerancia:La petición a través de nginx fallará:curl.exe -s -o NUL -w "Acceso por Nginx (caído): 
+```
+%{http_code}`n" http://localhost/
+```
+La petición directa a app1 funcionará:curl.exe -s -o NUL -w "Acceso directo a app1: 
+```
+%{http_code}`n" http://localhost:8081/
+```
+Restaurar el servicio:
+```
+docker-compose start nginx
+```
+### 4. LimpiezaDetener y eliminar contenedores, redes y volúmenes asociados:
+```
 docker-compose down --remove-orphans
 ```

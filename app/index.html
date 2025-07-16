@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Monitoreo de Servicios</title>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            background-color: #f0f0f0; 
+            color: #333;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        .panel {
+            border: 1px solid #ccc;
+            padding: 15px;
+            flex: 1;
+            background-color: #fff;
+        }
+        .feed-entry {
+            border-bottom: 1px solid #eee;
+            padding: 8px 0;
+        }
+        .status-badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Dashboard de Monitoreo de Servicios</h1>
+    
+    <hr>
+
+    <div class="container">
+        
+        <div class="panel">
+            <h2>Feed de Estado de la Aplicación Principal</h2>
+            <div id="app-feed" style="height: 400px; overflow-y: auto;">
+                <
+            </div>
+        </div>
+
+        
+        <div class="panel">
+            <h2>Monitor de Microservicios</h2>
+            <div id="message-service-status">
+                <span>Servicio de Mensajes: </span>
+                <span id="message-status-badge" class="status-badge">Cargando...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const appFeed = document.getElementById('app-feed');
+        const messageStatusBadge = document.getElementById('message-status-badge');
+
+        
+        async function fetchAppStatus() {
+            try {
+                const response = await fetch('/api/time');
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Error desconocido');
+                }
+                
+                const date = new Date(data.hora);
+                const timeString = date.toLocaleTimeString('es-ES');
+                
+                let sourceText = data.fuente === 'primary' ? 'Primario' : 'Réplica';
+                let sourceColor = data.fuente === 'primary' ? 'green' : 'orange';
+
+                addFeedEntry(
+                    `Datos recuperados a las ${timeString}`,
+                    sourceText,
+                    `Host: ${data.hostname}`,
+                    sourceColor
+                );
+
+            } catch (error) {
+                const timeString = new Date().toLocaleTimeString('es-ES');
+                addFeedEntry(
+                    `Fallo de conexión a las ${timeString}`,
+                    'Inaccesible',
+                    `Error: ${error.message}`,
+                    'red'
+                );
+            }
+        }
+
+        function addFeedEntry(title, sourceText, host, color) {
+            const entry = document.createElement('div');
+            entry.className = 'feed-entry';
+            
+            entry.innerHTML = `
+                <p>
+                    ${title} - 
+                    <span class="status-badge" style="background-color:${color};">${sourceText}</span>
+                </p>
+                <p style="font-size: 12px; color: #666;">${host}</p>
+            `;
+
+            appFeed.prepend(entry);
+            
+            if (appFeed.children.length > 50) {
+                appFeed.removeChild(appFeed.lastChild);
+            }
+        }
+
+        
+        async function fetchMessageServiceStatus() {
+            try {
+                const response = await fetch('/api/message-status');
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Servicio no disponible');
+                }
+
+                messageStatusBadge.style.backgroundColor = 'green';
+                messageStatusBadge.textContent = 'Operativo';
+
+            } catch (error) {
+                messageStatusBadge.style.backgroundColor = 'red';
+                messageStatusBadge.textContent = 'No Disponible';
+            }
+        }
+
+       
+        fetchAppStatus();
+        fetchMessageServiceStatus();
+
+        setInterval(fetchAppStatus, 3000);
+        setInterval(fetchMessageServiceStatus, 3000);
+    </script>
+</body>
+</html>
